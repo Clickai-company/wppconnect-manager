@@ -164,6 +164,11 @@
             .header h1 { font-size: 2rem; }
             .stats-bar { flex-direction: column; text-align: center; }
         }
+
+        /* ===== API CONFIG INDICATOR ===== */
+        .api-config { background: var(--info); color: var(--white); padding: var(--spacing-sm) var(--spacing-md);
+                     border-radius: var(--radius); font-size: 0.85rem; font-weight: 600;
+                     display: inline-block; margin-bottom: var(--spacing-md); }
     </style>
 </head>
 <body>
@@ -172,6 +177,9 @@
             <h1>📱 WppConnect Manager</h1>
             <p>Interface de Gerenciamento WhatsApp - EduCRM Pro</p>
             <div class="domain">🌐 wpp-manager.clickai.company</div>
+            <div class="api-config" id="api-config">
+                🔗 API: <span id="current-api">Detectando...</span>
+            </div>
         </div>
 
         <div class="stats-bar">
@@ -212,6 +220,9 @@
                 </button>
                 <button class="btn btn-success" onclick="startAutoRefresh()">
                     ⏱️ Auto-refresh
+                </button>
+                <button class="btn btn-warning" onclick="testConnections()">
+                    🧪 Testar Conexões
                 </button>
             </div>
 
@@ -301,22 +312,69 @@ Enviado via: wpp-manager.clickai.company</textarea>
                 </button>
             </div>
             <div id="logs" class="logs">
-🚀 WppConnect Manager iniciado
+🚀 WppConnect Manager iniciado - Versão Corrigida
 📡 Conectando com API base...
             </div>
         </div>
     </div>
 
     <script>
-        // ===== CONFIGURAÇÃO DA API =====
-        const API_BASE = 'http://31.97.87.194:21465';
+        // ===== CONFIGURAÇÃO DA API - DETECÇÃO AUTOMÁTICA =====
+        const API_ENDPOINTS = [
+            'http://31.97.87.194:21465',
+            'http://localhost:21465',
+            'https://wpp.clickai.company',
+            'http://wpp.clickai.company'
+        ];
+        
         const SECRET_KEY = 'EDUCRM_SECURE_TOKEN_2024';
+        let API_BASE = null;
 
         // ===== VARIÁVEIS GLOBAIS =====
         let instances = [];
         let autoRefreshInterval = null;
         let verboseMode = false;
         let startTime = Date.now();
+
+        // ===== DETECÇÃO AUTOMÁTICA DA API =====
+        async function detectApiEndpoint() {
+            addLog('🔍 Detectando endpoint da API...', 'info');
+            
+            for (const endpoint of API_ENDPOINTS) {
+                try {
+                    addLog(`🧪 Testando: ${endpoint}`, 'debug');
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    
+                    const response = await fetch(`${endpoint}/`, {
+                        method: 'GET',
+                        signal: controller.signal,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.status && data.status.includes('WppConnect')) {
+                            API_BASE = endpoint;
+                            addLog(`✅ API encontrada: ${endpoint}`, 'success');
+                            document.getElementById('current-api').textContent = endpoint;
+                            document.getElementById('api-config').style.background = 'var(--success)';
+                            return true;
+                        }
+                    }
+                } catch (error) {
+                    addLog(`❌ Falha em ${endpoint}: ${error.message}`, 'debug');
+                }
+            }
+            
+            addLog('❌ Nenhuma API encontrada!', 'error');
+            document.getElementById('current-api').textContent = 'API não encontrada';
+            document.getElementById('api-config').style.background = 'var(--danger)';
+            return false;
+        }
 
         // ===== FUNÇÕES DE LOG E ALERTA =====
         function addLog(message, type = 'info') {
@@ -325,6 +383,10 @@ Enviado via: wpp-manager.clickai.company</textarea>
             const icons = {
                 'info': 'ℹ️', 'success': '✅', 'error': '❌', 'warning': '⚠️', 'debug': '🔍'
             };
+            
+            // Filtrar logs debug se verbose mode estiver off
+            if (type === 'debug' && !verboseMode) return;
+            
             const icon = icons[type] || 'ℹ️';
             logs.textContent += `[${timestamp}] ${icon} ${message}\n`;
             logs.scrollTop = logs.scrollHeight;
@@ -342,29 +404,72 @@ Enviado via: wpp-manager.clickai.company</textarea>
 
         // ===== CHAMADAS API CORRIGIDAS =====
         async function apiCall(endpoint, options = {}) {
+            if (!API_BASE) {
+                addLog('❌ API Base não definida! Execute detectApiEndpoint() primeiro', 'error');
+                return { success: false, error: 'API não encontrada' };
+            }
+
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
                 const response = await fetch(`${API_BASE}${endpoint}`, {
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         ...options.headers
                     },
+                    signal: controller.signal,
                     ...options
                 });
-                const data = await response.json();
+                
+                clearTimeout(timeoutId);
                 
                 if (!response.ok) {
-                    throw new Error(data.error || data.message || `HTTP ${response.status}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
+                const data = await response.json();
                 return { success: true, data };
+                
             } catch (error) {
+                if (error.name === 'AbortError') {
+                    addLog(`⏱️ Timeout na API [${endpoint}]`, 'warning');
+                    return { success: false, error: 'Timeout na requisição' };
+                }
+                
                 addLog(`❌ API Error [${endpoint}]: ${error.message}`, 'error');
                 return { success: false, error: error.message };
             }
         }
 
+        // ===== TESTE DE CONEXÕES =====
+        async function testConnections() {
+            addLog('🧪 Iniciando teste de conexões...', 'info');
+            showAlert('Testando todas as conexões possíveis...', 'info');
+            
+            // Re-detectar API
+            const apiFound = await detectApiEndpoint();
+            
+            if (apiFound) {
+                showAlert('✅ API detectada e funcionando!', 'success');
+                refreshStatus();
+            } else {
+                showAlert('❌ Nenhuma API disponível encontrada', 'error');
+            }
+        }
+
         // ===== FUNÇÃO PRINCIPAL DE REFRESH =====
         async function refreshStatus() {
+            if (!API_BASE) {
+                addLog('⚠️ Detectando API antes do refresh...', 'warning');
+                const detected = await detectApiEndpoint();
+                if (!detected) {
+                    showAlert('API não encontrada. Verifique se está rodando.', 'error');
+                    return;
+                }
+            }
+
             const refreshIcon = document.getElementById('refresh-icon');
             refreshIcon.innerHTML = '<div class="loading"></div>';
             
@@ -444,13 +549,17 @@ Enviado via: wpp-manager.clickai.company</textarea>
                 return;
             }
             
+            if (!API_BASE) {
+                showAlert('API não encontrada! Execute teste de conexões primeiro.', 'error');
+                return;
+            }
+            
             createBtn.disabled = true;
             createBtn.innerHTML = '<div class="loading"></div> Criando...';
             
             try {
                 addLog(`🔨 Criando sessão: ${instanceName}...`, 'info');
                 
-                // Usar endpoint da nova API
                 const result = await apiCall(`/api/${instanceName}/start-session`, {
                     method: 'POST',
                     body: JSON.stringify({ webhook: webhookUrl })
@@ -488,6 +597,11 @@ Enviado via: wpp-manager.clickai.company</textarea>
 
         // ===== CARREGAR INSTÂNCIAS =====
         async function loadInstances() {
+            if (!API_BASE) {
+                showAlert('API não encontrada! Execute teste de conexões primeiro.', 'error');
+                return;
+            }
+
             try {
                 addLog('📋 Carregando instâncias...', 'info');
                 
@@ -572,16 +686,28 @@ Enviado via: wpp-manager.clickai.company</textarea>
             }
         }
 
-        // ===== DELETAR INSTÂNCIA (Simulação) =====
+        // ===== DELETAR INSTÂNCIA =====
         async function deleteInstance(sessionName) {
             if (!confirm(`Tem certeza que deseja deletar a sessão "${sessionName}"?`)) return;
             
             try {
                 addLog(`🗑️ Tentando deletar: ${sessionName}`, 'warning');
                 
-                // Como a API atual não tem endpoint de delete, apenas simular
-                showAlert(`Funcionalidade de deletar não implementada na API atual`, 'info');
-                addLog(`ℹ️ Endpoint de delete não disponível na API`, 'info');
+                // Verificar se a API tem endpoint de delete
+                const result = await apiCall(`/api/${sessionName}/delete-session`, {
+                    method: 'DELETE'
+                });
+                
+                if (result.success) {
+                    addLog(`✅ Sessão ${sessionName} deletada`, 'success');
+                    showAlert(`Sessão "${sessionName}" deletada!`, 'success');
+                    loadInstances();
+                    refreshStatus();
+                } else {
+                    // Se não tem endpoint de delete, apenas avisar
+                    showAlert(`Funcionalidade de deletar não implementada na API`, 'info');
+                    addLog(`ℹ️ Endpoint de delete não disponível na API`, 'info');
+                }
                 
             } catch (error) {
                 addLog(`❌ Erro ao deletar: ${error.message}`, 'error');
@@ -612,15 +738,22 @@ Enviado via: wpp-manager.clickai.company</textarea>
             try {
                 addLog(`📤 Enviando teste: ${session} → ${number}`, 'info');
                 
-                // Nota: A API atual não tem endpoint de envio implementado
-                // Simular envio por enquanto
-                showAlert('Funcionalidade de envio será implementada em breve', 'info');
-                addLog(`ℹ️ Endpoint de envio não implementado na API atual`, 'info');
+                const result = await apiCall(`/api/${session}/send-message`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        phone: number,
+                        message: message
+                    })
+                });
                 
-                // setTimeout(() => {
-                //     addLog(`✅ Mensagem enviada com sucesso!`, 'success');
-                //     showAlert('Mensagem enviada!', 'success');
-                // }, 2000);
+                if (result.success) {
+                    addLog(`✅ Mensagem enviada com sucesso!`, 'success');
+                    showAlert('Mensagem enviada!', 'success');
+                } else {
+                    // Se não tem endpoint de envio, avisar
+                    showAlert('Funcionalidade de envio será implementada em breve', 'info');
+                    addLog(`ℹ️ Endpoint de envio não implementado na API atual`, 'info');
+                }
                 
             } catch (error) {
                 addLog(`❌ Erro no envio: ${error.message}`, 'error');
@@ -707,20 +840,34 @@ Enviado via: wpp-manager.clickai.company</textarea>
 
         function checkAllConnections() {
             addLog('🔍 Verificando todas as conexões...', 'info');
+            testConnections();
             refreshStatus();
             loadInstances();
             showAlert('Verificação de conexões iniciada', 'info');
         }
 
         // ===== INICIALIZAÇÃO =====
-        document.addEventListener('DOMContentLoaded', function() {
-            addLog('🚀 WppConnect Manager iniciado', 'success');
-            addLog(`🔗 API Base: ${API_BASE}`, 'info');
-            addLog(`🔑 Secret Key: ${SECRET_KEY}`, 'info');
+        document.addEventListener('DOMContentLoaded', async function() {
+            addLog('🚀 WppConnect Manager iniciado - Versão Corrigida', 'success');
+            addLog('🔍 Iniciando detecção automática da API...', 'info');
             
-            // Inicializar status
-            refreshStatus();
-            showAlert('🎉 Interface carregada com sucesso!', 'success');
+            // Detectar API automaticamente
+            const apiDetected = await detectApiEndpoint();
+            
+            if (apiDetected) {
+                addLog(`🔗 API Base: ${API_BASE}`, 'info');
+                addLog(`🔑 Secret Key: ${SECRET_KEY}`, 'info');
+                
+                // Inicializar status
+                setTimeout(() => {
+                    refreshStatus();
+                    loadInstances();
+                }, 2000);
+                
+                showAlert('🎉 Interface carregada e API detectada!', 'success');
+            } else {
+                showAlert('⚠️ API não encontrada. Use "Testar Conexões" quando a API estiver online.', 'warning');
+            }
             
             // Validação de entrada em tempo real para número
             document.getElementById('test-number').addEventListener('input', function(e) {
@@ -742,11 +889,6 @@ Enviado via: wpp-manager.clickai.company</textarea>
             document.getElementById('instance-name').addEventListener('input', function(e) {
                 e.target.value = e.target.value.replace(/[^a-zA-Z0-9-_]/g, '');
             });
-            
-            // Auto-carregar instâncias após 3 segundos
-            setTimeout(() => {
-                loadInstances();
-            }, 3000);
         });
 
         // ===== CLEANUP =====
@@ -759,13 +901,15 @@ Enviado via: wpp-manager.clickai.company</textarea>
 
         // ===== DEBUG - Expor funções globalmente =====
         window.WppConnectManager = {
+            detectApiEndpoint,
+            testConnections,
             refreshStatus,
             loadInstances,
             createInstance,
             generateQR,
             checkSessionStatus,
             sendTestMessage,
-            API_BASE,
+            API_BASE: () => API_BASE,
             SECRET_KEY
         };
     </script>
