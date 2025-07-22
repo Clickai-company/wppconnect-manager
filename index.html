@@ -309,7 +309,8 @@ Enviado via: wpp-manager.clickai.company</textarea>
 
     <script>
         // ===== CONFIGURAÇÃO DA API =====
-        const API_BASE = 'https://wpp.clickai.company';
+        const API_BASE = 'http://31.97.87.194:21465';
+        const SECRET_KEY = 'EDUCRM_SECURE_TOKEN_2024';
 
         // ===== VARIÁVEIS GLOBAIS =====
         let instances = [];
@@ -339,6 +340,29 @@ Enviado via: wpp-manager.clickai.company</textarea>
             setTimeout(() => alert.remove(), 5000);
         }
 
+        // ===== CHAMADAS API CORRIGIDAS =====
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || data.message || `HTTP ${response.status}`);
+                }
+                
+                return { success: true, data };
+            } catch (error) {
+                addLog(`❌ API Error [${endpoint}]: ${error.message}`, 'error');
+                return { success: false, error: error.message };
+            }
+        }
+
         // ===== FUNÇÃO PRINCIPAL DE REFRESH =====
         async function refreshStatus() {
             const refreshIcon = document.getElementById('refresh-icon');
@@ -347,31 +371,48 @@ Enviado via: wpp-manager.clickai.company</textarea>
             try {
                 addLog('🔄 Verificando status da API...', 'info');
                 
-                const statusResponse = await fetch(`${API_BASE}/api/status`);
-                const statusData = await statusResponse.json();
+                // Testar endpoint principal
+                const healthResult = await apiCall('/');
                 
-                document.getElementById('api-status').innerHTML = '<div class="status-value">✅</div><div class="status-label">Online</div>';
-                document.getElementById('api-status').className = 'status-item connected';
-                document.getElementById('system-status').textContent = '✅ Operacional';
-                
-                const sessionsResponse = await fetch(`${API_BASE}/api/sessions`);
-                const sessionsData = await sessionsResponse.json();
-                const totalSessions = sessionsData.sessions?.length || 0;
-                
-                document.getElementById('total-sessions').innerHTML = `<div class="status-value">${totalSessions}</div><div class="status-label">Total</div>`;
-                document.getElementById('connected-sessions').innerHTML = `<div class="status-value">${totalSessions}</div><div class="status-label">Ativas</div>`;
-                document.getElementById('uptime').innerHTML = `<div class="status-value">${getUptime()}</div><div class="status-label">Uptime</div>`;
-                
-                const testSelect = document.getElementById('test-session');
-                testSelect.innerHTML = '<option value="">Escolha uma sessão...</option>';
-                if (sessionsData.sessions) {
-                    sessionsData.sessions.forEach(session => {
-                        testSelect.innerHTML += `<option value="${session}">${session}</option>`;
-                    });
+                if (healthResult.success) {
+                    const apiData = healthResult.data;
+                    
+                    document.getElementById('api-status').innerHTML = '<div class="status-value">✅</div><div class="status-label">Online</div>';
+                    document.getElementById('api-status').className = 'status-item connected';
+                    document.getElementById('system-status').textContent = '✅ Operacional';
+                    
+                    // Buscar sessões ativas
+                    const sessionsResult = await apiCall(`/api/${SECRET_KEY}/show-all-sessions`);
+                    
+                    if (sessionsResult.success) {
+                        const sessionsData = sessionsResult.data;
+                        const totalSessions = sessionsData.count || 0;
+                        const connectedSessions = sessionsData.sessions ? 
+                            sessionsData.sessions.filter(s => s.state === 'CONNECTED').length : 0;
+                        
+                        document.getElementById('total-sessions').innerHTML = 
+                            `<div class="status-value">${totalSessions}</div><div class="status-label">Total</div>`;
+                        document.getElementById('connected-sessions').innerHTML = 
+                            `<div class="status-value">${connectedSessions}</div><div class="status-label">Conectadas</div>`;
+                        
+                        // Atualizar select de teste
+                        const testSelect = document.getElementById('test-session');
+                        testSelect.innerHTML = '<option value="">Escolha uma sessão...</option>';
+                        if (sessionsData.sessions) {
+                            sessionsData.sessions.forEach(session => {
+                                testSelect.innerHTML += `<option value="${session.session}">${session.session}</option>`;
+                            });
+                        }
+                        
+                        addLog(`✅ Status atualizado: ${totalSessions} sessão(es), ${connectedSessions} conectada(s)`, 'success');
+                    }
+                    
+                    document.getElementById('uptime').innerHTML = `<div class="status-value">${getUptime()}</div><div class="status-label">Uptime</div>`;
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+                    
+                } else {
+                    throw new Error(healthResult.error);
                 }
-                
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
-                addLog(`✅ Status atualizado: ${totalSessions} sessão(es)`, 'success');
                 
             } catch (error) {
                 addLog(`❌ Erro: ${error.message}`, 'error');
@@ -407,29 +448,34 @@ Enviado via: wpp-manager.clickai.company</textarea>
             createBtn.innerHTML = '<div class="loading"></div> Criando...';
             
             try {
-                addLog(`🔨 Criando instância: ${instanceName}...`, 'info');
+                addLog(`🔨 Criando sessão: ${instanceName}...`, 'info');
                 
-                const response = await fetch(`${API_BASE}/api/create-instance`, {
+                // Usar endpoint da nova API
+                const result = await apiCall(`/api/${instanceName}/start-session`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ instanceName, webhook: webhookUrl })
+                    body: JSON.stringify({ webhook: webhookUrl })
                 });
                 
-                const data = await response.json();
-                if (response.ok) {
-                    addLog(`✅ Instância criada: ${instanceName}`, 'success');
-                    showAlert(`Instância "${instanceName}" criada!`, 'success');
-                    
-                    if (data.qrCode) {
-                        document.getElementById('qr-image').src = `data:image/png;base64,${data.qrCode}`;
-                        document.getElementById('qr-container').style.display = 'block';
-                        addLog('📱 QR Code gerado', 'success');
-                    }
+                if (result.success) {
+                    addLog(`✅ Sessão criada: ${instanceName}`, 'success');
+                    showAlert(`Sessão "${instanceName}" criada!`, 'success');
                     
                     document.getElementById('instance-name').value = '';
-                    setTimeout(() => { refreshStatus(); loadInstances(); }, 2000);
+                    
+                    // Aguardar um pouco e verificar se gerou QR Code
+                    setTimeout(async () => {
+                        const qrResult = await apiCall(`/api/${instanceName}/qrcode-session`);
+                        if (qrResult.success && qrResult.data.qrcode) {
+                            document.getElementById('qr-image').src = qrResult.data.qrcode;
+                            document.getElementById('qr-container').style.display = 'block';
+                            addLog('📱 QR Code gerado', 'success');
+                        }
+                        refreshStatus();
+                        loadInstances();
+                    }, 3000);
+                    
                 } else {
-                    throw new Error(data.message || 'Erro');
+                    throw new Error(result.error);
                 }
             } catch (error) {
                 addLog(`❌ Erro: ${error.message}`, 'error');
@@ -444,66 +490,102 @@ Enviado via: wpp-manager.clickai.company</textarea>
         async function loadInstances() {
             try {
                 addLog('📋 Carregando instâncias...', 'info');
-                const response = await fetch(`${API_BASE}/api/sessions`);
-                const data = await response.json();
+                
+                const result = await apiCall(`/api/${SECRET_KEY}/show-all-sessions`);
                 const instancesList = document.getElementById('instances-list');
                 instancesList.innerHTML = '';
                 
-                if (data.sessions && data.sessions.length > 0) {
-                    data.sessions.forEach(session => {
+                if (result.success && result.data.sessions && result.data.sessions.length > 0) {
+                    result.data.sessions.forEach(session => {
+                        const statusClass = session.state === 'CONNECTED' ? 'status-connected' : 'status-disconnected';
+                        const statusText = session.state === 'CONNECTED' ? '✅ Conectada' : 
+                                         session.state === 'QRCODE' ? '📱 QR Code' : 
+                                         session.state === 'INITIALIZING' ? '🔄 Inicializando' : '❌ Desconectada';
+                        
                         const instanceDiv = document.createElement('div');
                         instanceDiv.className = 'instance-item';
                         instanceDiv.innerHTML = `
                             <div class="instance-header">
-                                <span class="instance-name">📱 ${session}</span>
-                                <span class="instance-status status-connected">✅ Ativa</span>
+                                <span class="instance-name">📱 ${session.session}</span>
+                                <span class="instance-status ${statusClass}">${statusText}</span>
                             </div>
                             <div class="instance-actions">
-                                <button class="btn btn-primary" onclick="generateQR('${session}')">📱 QR Code</button>
-                                <button class="btn btn-danger" onclick="deleteInstance('${session}')">🗑️ Deletar</button>
+                                <button class="btn btn-primary" onclick="checkSessionStatus('${session.session}')">🔍 Status</button>
+                                ${session.state === 'QRCODE' ? `<button class="btn btn-warning" onclick="generateQR('${session.session}')">📱 QR Code</button>` : ''}
+                                <button class="btn btn-danger" onclick="deleteInstance('${session.session}')">🗑️ Deletar</button>
                             </div>
                         `;
                         instancesList.appendChild(instanceDiv);
                     });
-                    addLog(`✅ ${data.sessions.length} instância(s)`, 'success');
+                    addLog(`✅ ${result.data.sessions.length} instância(s) carregadas`, 'success');
                 } else {
-                    instancesList.innerHTML = '<div class="empty-state"><h3>📱 Nenhuma instância</h3></div>';
+                    instancesList.innerHTML = '<div class="empty-state"><h3>📱 Nenhuma instância encontrada</h3><p>Crie uma nova instância para começar</p></div>';
+                    addLog('ℹ️ Nenhuma instância encontrada', 'info');
                 }
             } catch (error) {
-                addLog(`❌ Erro: ${error.message}`, 'error');
+                addLog(`❌ Erro ao carregar instâncias: ${error.message}`, 'error');
+                document.getElementById('instances-list').innerHTML = '<div class="empty-state"><h3>❌ Erro ao carregar</h3><p>Verifique a conexão com a API</p></div>';
+            }
+        }
+
+        // ===== VERIFICAR STATUS DA SESSÃO =====
+        async function checkSessionStatus(sessionName) {
+            try {
+                addLog(`🔍 Verificando status: ${sessionName}`, 'info');
+                
+                const result = await apiCall(`/api/${sessionName}/status-session`);
+                
+                if (result.success) {
+                    const status = result.data.state;
+                    addLog(`✅ Status ${sessionName}: ${status}`, 'success');
+                    showAlert(`Sessão ${sessionName}: ${status}`, 'success');
+                    
+                    // Recarregar lista para atualizar status
+                    setTimeout(() => loadInstances(), 1000);
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                addLog(`❌ Erro ao verificar status: ${error.message}`, 'error');
+                showAlert('Erro ao verificar status', 'error');
             }
         }
 
         // ===== GERAR QR CODE =====
-        async function generateQR(instanceName) {
+        async function generateQR(sessionName) {
             try {
-                addLog(`📱 Gerando QR: ${instanceName}`, 'info');
-                const response = await fetch(`${API_BASE}/api/generate-qr/${instanceName}`);
-                const data = await response.json();
-                if (response.ok && data.qrCode) {
-                    document.getElementById('qr-image').src = `data:image/png;base64,${data.qrCode}`;
+                addLog(`📱 Gerando QR Code: ${sessionName}`, 'info');
+                
+                const result = await apiCall(`/api/${sessionName}/qrcode-session`);
+                
+                if (result.success && result.data.qrcode) {
+                    document.getElementById('qr-image').src = result.data.qrcode;
                     document.getElementById('qr-container').style.display = 'block';
-                    addLog(`✅ QR gerado: ${instanceName}`, 'success');
-                    showAlert('QR Code gerado!', 'success');
+                    addLog(`✅ QR Code gerado: ${sessionName}`, 'success');
+                    showAlert('QR Code gerado com sucesso!', 'success');
+                } else {
+                    throw new Error(result.error || 'QR Code não disponível');
                 }
             } catch (error) {
-                addLog(`❌ Erro QR: ${error.message}`, 'error');
+                addLog(`❌ Erro ao gerar QR: ${error.message}`, 'error');
+                showAlert('Erro ao gerar QR Code', 'error');
             }
         }
 
-        // ===== DELETAR INSTÂNCIA =====
-        async function deleteInstance(instanceName) {
-            if (!confirm(`Deletar "${instanceName}"?`)) return;
+        // ===== DELETAR INSTÂNCIA (Simulação) =====
+        async function deleteInstance(sessionName) {
+            if (!confirm(`Tem certeza que deseja deletar a sessão "${sessionName}"?`)) return;
+            
             try {
-                const response = await fetch(`${API_BASE}/api/delete-instance/${instanceName}`, { method: 'DELETE' });
-                if (response.ok) {
-                    addLog(`✅ Deletada: ${instanceName}`, 'success');
-                    showAlert('Instância deletada!', 'success');
-                    loadInstances();
-                    refreshStatus();
-                }
+                addLog(`🗑️ Tentando deletar: ${sessionName}`, 'warning');
+                
+                // Como a API atual não tem endpoint de delete, apenas simular
+                showAlert(`Funcionalidade de deletar não implementada na API atual`, 'info');
+                addLog(`ℹ️ Endpoint de delete não disponível na API`, 'info');
+                
             } catch (error) {
-                addLog(`❌ Erro: ${error.message}`, 'error');
+                addLog(`❌ Erro ao deletar: ${error.message}`, 'error');
+                showAlert('Erro ao deletar instância', 'error');
             }
         }
 
@@ -512,27 +594,40 @@ Enviado via: wpp-manager.clickai.company</textarea>
             const session = document.getElementById('test-session').value;
             const number = document.getElementById('test-number').value.trim();
             const message = document.getElementById('test-message').value.trim();
+            const testBtn = document.getElementById('test-btn');
             
             if (!session || !number || !message) {
                 showAlert('Preencha todos os campos!', 'error');
                 return;
             }
             
+            if (number.length !== 13) {
+                showAlert('Número deve ter 13 dígitos (ex: 5541999999999)', 'error');
+                return;
+            }
+            
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<div class="loading"></div> Enviando...';
+            
             try {
-                const response = await fetch(`${API_BASE}/api/send-message`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session, number, message })
-                });
+                addLog(`📤 Enviando teste: ${session} → ${number}`, 'info');
                 
-                const data = await response.json();
-                if (response.ok) {
-                    addLog(`✅ Enviado! ID: ${data.messageId || 'N/A'}`, 'success');
-                    showAlert('Mensagem enviada!', 'success');
-                }
+                // Nota: A API atual não tem endpoint de envio implementado
+                // Simular envio por enquanto
+                showAlert('Funcionalidade de envio será implementada em breve', 'info');
+                addLog(`ℹ️ Endpoint de envio não implementado na API atual`, 'info');
+                
+                // setTimeout(() => {
+                //     addLog(`✅ Mensagem enviada com sucesso!`, 'success');
+                //     showAlert('Mensagem enviada!', 'success');
+                // }, 2000);
+                
             } catch (error) {
-                addLog(`❌ Erro: ${error.message}`, 'error');
-                showAlert('Erro no envio', 'error');
+                addLog(`❌ Erro no envio: ${error.message}`, 'error');
+                showAlert('Erro no envio da mensagem', 'error');
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerHTML = '📤 Enviar Teste';
             }
         }
 
@@ -544,10 +639,12 @@ Enviado via: wpp-manager.clickai.company</textarea>
 
         function validateNumber() {
             const number = document.getElementById('test-number').value.trim();
-            if (number.length === 13) {
-                showAlert('Número válido!', 'success');
+            if (number.length === 13 && /^\d+$/.test(number)) {
+                showAlert('✅ Número válido!', 'success');
+                addLog(`✅ Número validado: ${number}`, 'success');
             } else {
-                showAlert('Use 13 dígitos: 5541999999999', 'error');
+                showAlert('❌ Use exatamente 13 dígitos: 5541999999999', 'error');
+                addLog(`❌ Número inválido: ${number}`, 'error');
             }
         }
 
@@ -578,7 +675,14 @@ Enviado via: wpp-manager.clickai.company</textarea>
         }
 
         function refreshQR() {
-            showAlert('Funcionalidade em desenvolvimento', 'info');
+            const sessionSelect = document.getElementById('test-session');
+            const selectedSession = sessionSelect.value;
+            
+            if (selectedSession) {
+                generateQR(selectedSession);
+            } else {
+                showAlert('Selecione uma sessão primeiro', 'error');
+            }
         }
 
         function startAutoRefresh() {
@@ -586,12 +690,15 @@ Enviado via: wpp-manager.clickai.company</textarea>
                 clearInterval(autoRefreshInterval);
                 autoRefreshInterval = null;
                 showAlert('Auto-refresh desativado', 'info');
+                addLog('⏹️ Auto-refresh parado', 'info');
                 return;
             }
             
             autoRefreshInterval = setInterval(() => {
                 refreshStatus();
-                addLog('🔄 Auto-refresh executado', 'info');
+                if (verboseMode) {
+                    addLog('🔄 Auto-refresh executado', 'debug');
+                }
             }, 30000);
             
             showAlert('Auto-refresh ativado (30s)', 'success');
@@ -599,36 +706,68 @@ Enviado via: wpp-manager.clickai.company</textarea>
         }
 
         function checkAllConnections() {
-            loadInstances();
-            refreshStatus();
             addLog('🔍 Verificando todas as conexões...', 'info');
+            refreshStatus();
+            loadInstances();
+            showAlert('Verificação de conexões iniciada', 'info');
         }
 
         // ===== INICIALIZAÇÃO =====
         document.addEventListener('DOMContentLoaded', function() {
             addLog('🚀 WppConnect Manager iniciado', 'success');
-            addLog(`🔗 API: ${API_BASE}`, 'info');
-            refreshStatus();
-            showAlert('🎉 Interface carregada!', 'success');
+            addLog(`🔗 API Base: ${API_BASE}`, 'info');
+            addLog(`🔑 Secret Key: ${SECRET_KEY}`, 'info');
             
-            // Validação de entrada em tempo real
+            // Inicializar status
+            refreshStatus();
+            showAlert('🎉 Interface carregada com sucesso!', 'success');
+            
+            // Validação de entrada em tempo real para número
             document.getElementById('test-number').addEventListener('input', function(e) {
                 let value = e.target.value.replace(/\D/g, '');
                 if (value.length > 13) value = value.slice(0, 13);
                 e.target.value = value;
+                
+                // Feedback visual
+                if (value.length === 13) {
+                    e.target.style.borderColor = 'var(--success)';
+                } else if (value.length > 0) {
+                    e.target.style.borderColor = 'var(--warning)';
+                } else {
+                    e.target.style.borderColor = 'var(--gray-200)';
+                }
             });
             
+            // Validação para nome da instância
             document.getElementById('instance-name').addEventListener('input', function(e) {
                 e.target.value = e.target.value.replace(/[^a-zA-Z0-9-_]/g, '');
             });
+            
+            // Auto-carregar instâncias após 3 segundos
+            setTimeout(() => {
+                loadInstances();
+            }, 3000);
         });
 
         // ===== CLEANUP =====
         window.addEventListener('beforeunload', function() {
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
+                addLog('🔚 Auto-refresh finalizado', 'info');
             }
         });
+
+        // ===== DEBUG - Expor funções globalmente =====
+        window.WppConnectManager = {
+            refreshStatus,
+            loadInstances,
+            createInstance,
+            generateQR,
+            checkSessionStatus,
+            sendTestMessage,
+            API_BASE,
+            SECRET_KEY
+        };
     </script>
 </body>
 </html>
