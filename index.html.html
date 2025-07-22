@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WppConnect Manager - EduCRM Pro</title>
+    <meta name="description" content="Interface de gerenciamento para instâncias WhatsApp do EduCRM Pro">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
+    
+    <style>
+        /* ===== VARIÁVEIS CSS - CORES CLICKAI ===== */
+        :root {
+            --primary: #1e3a5f; --primary-dark: #152b47; --primary-light: #2a4d73;
+            --secondary: #c8a96e; --secondary-dark: #b8995e; --secondary-light: #d4b97e;
+            --success: #28a745; --success-dark: #1e7e34; --warning: #ffc107; --warning-dark: #e0a800;
+            --danger: #dc3545; --danger-dark: #c82333; --info: #17a2b8; --info-dark: #117a8b;
+            --gray-50: #f8f9fa; --gray-100: #e9ecef; --gray-200: #dee2e6; --gray-600: #6c757d;
+            --gray-800: #343a40; --white: #ffffff; --shadow: 0 20px 40px rgba(30, 58, 95, 0.15);
+            --radius: 12px; --radius-lg: 16px; --spacing-sm: 8px; --spacing-md: 16px;
+            --spacing-lg: 24px; --spacing-xl: 32px;
+        }
+        
+        /* ===== RESET E BASE ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2a4d73 50%, #c8a96e 100%);
+            min-height: 100vh; color: var(--gray-800); line-height: 1.6;
+        }
+        
+        /* ===== CONTAINER ===== */
+        .container { max-width: 1400px; margin: 0 auto; padding: var(--spacing-lg); }
+        
+        /* ===== HEADER ===== */
+        .header { text-align: center; margin-bottom: var(--spacing-xl); color: var(--white); }
+        .header h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: var(--spacing-sm); text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .header p { font-size: 1.1rem; opacity: 0.95; }
+        .header .domain { font-size: 0.9rem; background: rgba(200, 169, 110, 0.2); padding: var(--spacing-sm) var(--spacing-md);
+                         border-radius: var(--radius); margin-top: var(--spacing-sm); backdrop-filter: blur(10px); display: inline-block;
+                         border: 1px solid rgba(200, 169, 110, 0.3); }
+        
+        /* ===== STATS BAR ===== */
+        .stats-bar { display: flex; justify-content: space-between; align-items: center; 
+                    background: linear-gradient(135deg, rgba(200, 169, 110, 0.15) 0%, rgba(30, 58, 95, 0.15) 100%);
+                    padding: var(--spacing-md); border-radius: var(--radius); margin-bottom: var(--spacing-lg);
+                    color: var(--white); backdrop-filter: blur(15px); flex-wrap: wrap; gap: var(--spacing-md);
+                    border: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        /* ===== DASHBOARD ===== */
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+                    gap: var(--spacing-xl); margin-bottom: var(--spacing-xl); }
+        
+        /* ===== CARDS ===== */
+        .card { background: var(--white); border-radius: var(--radius-lg); padding: var(--spacing-xl);
+               box-shadow: var(--shadow); backdrop-filter: blur(10px); 
+               border: 1px solid rgba(200, 169, 110, 0.1);
+               transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card:hover { transform: translateY(-4px); 
+                     box-shadow: 0 25px 50px rgba(30, 58, 95, 0.2), 0 0 20px rgba(200, 169, 110, 0.1); }
+        .card h2 { color: var(--primary); margin-bottom: var(--spacing-lg); display: flex; align-items: center;
+                  gap: var(--spacing-sm); font-size: 1.3rem; font-weight: 600; }
+        
+        /* ===== STATUS GRID ===== */
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                      gap: var(--spacing-md); margin-bottom: var(--spacing-lg); }
+        .status-item { background: var(--gray-50); padding: var(--spacing-md); border-radius: var(--radius);
+                      text-align: center; border: 2px solid transparent; transition: all 0.3s ease; }
+        .status-item.connected { border-color: var(--success); 
+                               background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); }
+        .status-item.disconnected { border-color: var(--danger); 
+                                   background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); }
+        .status-value { font-size: 1.8rem; font-weight: 700; margin-bottom: var(--spacing-sm); color: var(--primary); }
+        .status-label { font-size: 0.85rem; color: var(--gray-600); font-weight: 500; }
+        
+        /* ===== FORMULÁRIOS ===== */
+        .form-group { margin-bottom: var(--spacing-lg); }
+        .form-group label { display: block; margin-bottom: var(--spacing-sm); font-weight: 600; color: var(--primary); }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: var(--spacing-md); border: 2px solid var(--gray-200);
+            border-radius: var(--radius); font-size: 1rem; transition: all 0.3s ease; background: var(--white); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none; border-color: var(--secondary); 
+            box-shadow: 0 0 0 3px rgba(200, 169, 110, 0.15); }
+        
+        /* ===== BOTÕES ===== */
+        .btn { padding: var(--spacing-md) var(--spacing-lg); border: none; border-radius: var(--radius);
+              font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;
+              margin-right: var(--spacing-sm); margin-bottom: var(--spacing-sm);
+              display: inline-flex; align-items: center; gap: var(--spacing-sm);
+              text-decoration: none; min-height: 44px; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-primary { background: var(--primary); color: var(--white); 
+                      box-shadow: 0 4px 12px rgba(30, 58, 95, 0.3); }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px);
+                                          box-shadow: 0 6px 16px rgba(30, 58, 95, 0.4); }
+        .btn-success { background: var(--success); color: var(--white); 
+                      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); }
+        .btn-success:hover:not(:disabled) { background: var(--success-dark); transform: translateY(-2px);
+                                          box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4); }
+        .btn-danger { background: var(--danger); color: var(--white); 
+                     box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3); }
+        .btn-danger:hover:not(:disabled) { background: var(--danger-dark); transform: translateY(-2px);
+                                         box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4); }
+        .btn-warning { background: var(--secondary); color: var(--primary); 
+                      box-shadow: 0 4px 12px rgba(200, 169, 110, 0.3); font-weight: 700; }
+        .btn-warning:hover:not(:disabled) { background: var(--secondary-dark); transform: translateY(-2px);
+                                          box-shadow: 0 6px 16px rgba(200, 169, 110, 0.4); }
+        
+        /* ===== INSTÂNCIAS ===== */
+        .instances-list { margin-top: var(--spacing-lg); }
+        .instance-item { background: var(--gray-50); padding: var(--spacing-lg); border-radius: var(--radius);
+                        margin-bottom: var(--spacing-md); border-left: 4px solid var(--secondary); 
+                        transition: all 0.3s ease; }
+        .instance-item:hover { background: var(--white); 
+                              box-shadow: 0 4px 12px rgba(30, 58, 95, 0.1), 0 0 8px rgba(200, 169, 110, 0.1); }
+        .instance-header { display: flex; justify-content: space-between; align-items: center;
+                          margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm); }
+        .instance-name { font-weight: 700; font-size: 1.1rem; color: var(--primary); }
+        .instance-status { padding: 4px var(--spacing-md); border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+        .status-connected { background: var(--success); color: var(--white); }
+        .status-disconnected { background: var(--danger); color: var(--white); }
+        .instance-actions { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
+        
+        /* ===== QR CODE ===== */
+        .qr-container { text-align: center; padding: var(--spacing-xl); background: var(--gray-50);
+                       border-radius: var(--radius); margin-top: var(--spacing-lg); 
+                       border: 2px dashed var(--secondary); }
+        .qr-code { max-width: 256px; width: 100%; height: auto; border: 2px solid var(--secondary);
+                  border-radius: var(--radius); background: var(--white); }
+        
+        /* ===== LOGS ===== */
+        .logs { background: var(--primary); color: #e2e8f0; padding: var(--spacing-lg); border-radius: var(--radius);
+               font-family: 'SFMono-Regular', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+               font-size: 0.9rem; max-height: 400px; overflow-y: auto; margin-top: var(--spacing-lg); 
+               line-height: 1.4; border: 1px solid var(--secondary); }
+        .logs::-webkit-scrollbar { width: 8px; }
+        .logs::-webkit-scrollbar-track { background: var(--primary-dark); }
+        .logs::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 4px; }
+        
+        /* ===== ALERTAS ===== */
+        .alert { padding: var(--spacing-md) var(--spacing-lg); border-radius: var(--radius);
+                margin-bottom: var(--spacing-lg); border: 1px solid; display: flex;
+                align-items: center; gap: var(--spacing-sm); }
+        .alert-success { background: #d4edda; color: #155724; border-color: var(--success); }
+        .alert-error { background: #f8d7da; color: #721c24; border-color: var(--danger); }
+        .alert-info { background: #d1ecf1; color: #0c5460; border-color: var(--info); }
+        
+        /* ===== LOADING ===== */
+        .loading { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--secondary);
+                  border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* ===== EMPTY STATE ===== */
+        .empty-state { text-align: center; padding: var(--spacing-xl); color: var(--gray-600); }
+        .empty-state h3 { font-size: 1.2rem; margin-bottom: var(--spacing-sm); color: var(--primary); }
+        
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .container { padding: var(--spacing-md); }
+            .dashboard { grid-template-columns: 1fr; }
+            .instance-header { flex-direction: column; align-items: flex-start; }
+            .instance-actions { justify-content: flex-start; width: 100%; }
+            .header h1 { font-size: 2rem; }
+            .stats-bar { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 WppConnect Manager</h1>
+            <p>Interface de Gerenciamento WhatsApp - EduCRM Pro</p>
+            <div class="domain">🌐 wpp-manager.clickai.company</div>
+        </div>
+
+        <div class="stats-bar">
+            <div>
+                <strong>🚀 Sistema:</strong> <span id="system-status">Verificando...</span>
+            </div>
+            <div>
+                <strong>🔄 Última atualização:</strong> <span id="last-update">--</span>
+            </div>
+        </div>
+
+        <div id="alerts"></div>
+
+        <div class="dashboard">
+            <!-- Status Geral -->
+            <div class="card">
+                <h2>📊 Status do Sistema</h2>
+                <div class="status-grid">
+                    <div class="status-item" id="api-status">
+                        <div class="status-value">--</div>
+                        <div class="status-label">API Status</div>
+                    </div>
+                    <div class="status-item" id="total-sessions">
+                        <div class="status-value">--</div>
+                        <div class="status-label">Total Sessões</div>
+                    </div>
+                    <div class="status-item" id="connected-sessions">
+                        <div class="status-value">--</div>
+                        <div class="status-label">Conectadas</div>
+                    </div>
+                    <div class="status-item" id="uptime">
+                        <div class="status-value">--</div>
+                        <div class="status-label">Uptime</div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="refreshStatus()">
+                    <span id="refresh-icon">🔄</span> Atualizar Status
+                </button>
+                <button class="btn btn-success" onclick="startAutoRefresh()">
+                    ⏱️ Auto-refresh
+                </button>
+            </div>
+
+            <!-- Criar Nova Instância -->
+            <div class="card">
+                <h2>➕ Nova Instância WhatsApp</h2>
+                <div class="form-group">
+                    <label for="instance-name">Nome da Instância:</label>
+                    <input type="text" id="instance-name" placeholder="ex: educrm-vendas-2024" maxlength="50" />
+                </div>
+                <div class="form-group">
+                    <label for="webhook-url">URL do Webhook:</label>
+                    <input type="url" id="webhook-url" value="https://webhook.clickai.company/webhook/whatsapp" />
+                </div>
+                <button class="btn btn-success" onclick="createInstance()" id="create-btn">
+                    ✨ Criar Instância
+                </button>
+                
+                <div id="qr-container" class="qr-container" style="display: none;">
+                    <h3>📱 QR Code para Conexão</h3>
+                    <p>Abra WhatsApp Business e escaneie:</p>
+                    <img id="qr-image" class="qr-code" alt="QR Code" />
+                    <p><small>⏱️ QR Code expira em 2 minutos</small></p>
+                    <button class="btn btn-warning" onclick="refreshQR()">🔄 Gerar Novo QR</button>
+                </div>
+            </div>
+
+            <!-- Gerenciar Instâncias -->
+            <div class="card">
+                <h2>⚙️ Instâncias Ativas</h2>
+                <div style="margin-bottom: var(--spacing-lg);">
+                    <button class="btn btn-primary" onclick="loadInstances()">
+                        📋 Recarregar Lista
+                    </button>
+                    <button class="btn btn-warning" onclick="checkAllConnections()">
+                        🔍 Verificar Conexões
+                    </button>
+                </div>
+                <div id="instances-list" class="instances-list">
+                    <div class="empty-state">
+                        <h3>📱 Nenhuma instância carregada</h3>
+                        <p>Clique em "Recarregar Lista" para ver suas instâncias</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teste Rápido -->
+            <div class="card">
+                <h2>🧪 Teste Rápido de Envio</h2>
+                <div class="form-group">
+                    <label for="test-session">Selecionar Sessão:</label>
+                    <select id="test-session">
+                        <option value="">Escolha uma sessão...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="test-number">Número (formato: 5541999999999):</label>
+                    <input type="tel" id="test-number" placeholder="5541999999999" pattern="[0-9]{13}" />
+                </div>
+                <div class="form-group">
+                    <label for="test-message">Mensagem de Teste:</label>
+                    <textarea id="test-message" rows="3" placeholder="Digite sua mensagem de teste...">🧪 Teste do WppConnect Manager - EduCRM Pro
+Sistema funcionando perfeitamente!
+Enviado via: wpp-manager.clickai.company</textarea>
+                </div>
+                <button class="btn btn-warning" onclick="sendTestMessage()" id="test-btn">
+                    📤 Enviar Teste
+                </button>
+                <button class="btn btn-primary" onclick="validateNumber()" id="validate-btn">
+                    ✅ Validar Número
+                </button>
+            </div>
+        </div>
+
+        <!-- Logs Avançados -->
+        <div class="card">
+            <h2>📋 Console de Atividades</h2>
+            <div style="margin-bottom: var(--spacing-lg);">
+                <button class="btn btn-primary" onclick="clearLogs()">
+                    🗑️ Limpar Console
+                </button>
+                <button class="btn btn-success" onclick="exportLogs()">
+                    📥 Exportar Logs
+                </button>
+                <button class="btn btn-warning" onclick="toggleVerbose()">
+                    🔍 <span id="verbose-toggle">Verbose Off</span>
+                </button>
+            </div>
+            <div id="logs" class="logs">
+🚀 WppConnect Manager iniciado
+📡 Conectando com API base...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURAÇÃO DA API =====
+        const API_BASE = 'http://wpp.clickai.company';
+
+        // ===== VARIÁVEIS GLOBAIS =====
+        let instances = [];
+        let autoRefreshInterval = null;
+        let verboseMode = false;
+        let startTime = Date.now();
+
+        // ===== FUNÇÕES DE LOG E ALERTA =====
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString('pt-BR');
+            const icons = {
+                'info': 'ℹ️', 'success': '✅', 'error': '❌', 'warning': '⚠️', 'debug': '🔍'
+            };
+            const icon = icons[type] || 'ℹ️';
+            logs.textContent += `[${timestamp}] ${icon} ${message}\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function showAlert(message, type = 'success') {
+            const alerts = document.getElementById('alerts');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            const icons = { 'success': '✅', 'error': '❌', 'info': 'ℹ️' };
+            alert.innerHTML = `${icons[type]} ${message}`;
+            alerts.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        // ===== FUNÇÃO PRINCIPAL DE REFRESH =====
+        async function refreshStatus() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            refreshIcon.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                addLog('🔄 Verificando status da API...', 'info');
+                
+                const statusResponse = await fetch(`${API_BASE}/api/status`);
+                const statusData = await statusResponse.json();
+                
+                document.getElementById('api-status').innerHTML = '<div class="status-value">✅</div><div class="status-label">Online</div>';
+                document.getElementById('api-status').className = 'status-item connected';
+                document.getElementById('system-status').textContent = '✅ Operacional';
+                
+                const sessionsResponse = await fetch(`${API_BASE}/api/sessions`);
+                const sessionsData = await sessionsResponse.json();
+                const totalSessions = sessionsData.sessions?.length || 0;
+                
+                document.getElementById('total-sessions').innerHTML = `<div class="status-value">${totalSessions}</div><div class="status-label">Total</div>`;
+                document.getElementById('connected-sessions').innerHTML = `<div class="status-value">${totalSessions}</div><div class="status-label">Ativas</div>`;
+                document.getElementById('uptime').innerHTML = `<div class="status-value">${getUptime()}</div><div class="status-label">Uptime</div>`;
+                
+                const testSelect = document.getElementById('test-session');
+                testSelect.innerHTML = '<option value="">Escolha uma sessão...</option>';
+                if (sessionsData.sessions) {
+                    sessionsData.sessions.forEach(session => {
+                        testSelect.innerHTML += `<option value="${session}">${session}</option>`;
+                    });
+                }
+                
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+                addLog(`✅ Status atualizado: ${totalSessions} sessão(es)`, 'success');
+                
+            } catch (error) {
+                addLog(`❌ Erro: ${error.message}`, 'error');
+                showAlert('Erro ao conectar com a API', 'error');
+                document.getElementById('api-status').innerHTML = '<div class="status-value">❌</div><div class="status-label">Offline</div>';
+                document.getElementById('api-status').className = 'status-item disconnected';
+                document.getElementById('system-status').textContent = '❌ Erro de conexão';
+            }
+            
+            refreshIcon.innerHTML = '🔄';
+        }
+
+        function getUptime() {
+            const uptime = Date.now() - startTime;
+            const minutes = Math.floor(uptime / 60000);
+            const hours = Math.floor(minutes / 60);
+            if (hours > 0) return `${hours}h ${minutes % 60}m`;
+            return `${minutes}m`;
+        }
+
+        // ===== CRIAR NOVA INSTÂNCIA =====
+        async function createInstance() {
+            const instanceName = document.getElementById('instance-name').value.trim();
+            const webhookUrl = document.getElementById('webhook-url').value.trim();
+            const createBtn = document.getElementById('create-btn');
+            
+            if (!instanceName) {
+                showAlert('Nome da instância é obrigatório!', 'error');
+                return;
+            }
+            
+            createBtn.disabled = true;
+            createBtn.innerHTML = '<div class="loading"></div> Criando...';
+            
+            try {
+                addLog(`🔨 Criando instância: ${instanceName}...`, 'info');
+                
+                const response = await fetch(`${API_BASE}/api/create-instance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instanceName, webhook: webhookUrl })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    addLog(`✅ Instância criada: ${instanceName}`, 'success');
+                    showAlert(`Instância "${instanceName}" criada!`, 'success');
+                    
+                    if (data.qrCode) {
+                        document.getElementById('qr-image').src = `data:image/png;base64,${data.qrCode}`;
+                        document.getElementById('qr-container').style.display = 'block';
+                        addLog('📱 QR Code gerado', 'success');
+                    }
+                    
+                    document.getElementById('instance-name').value = '';
+                    setTimeout(() => { refreshStatus(); loadInstances(); }, 2000);
+                } else {
+                    throw new Error(data.message || 'Erro');
+                }
+            } catch (error) {
+                addLog(`❌ Erro: ${error.message}`, 'error');
+                showAlert('Erro ao criar instância', 'error');
+            } finally {
+                createBtn.disabled = false;
+                createBtn.innerHTML = '✨ Criar Instância';
+            }
+        }
+
+        // ===== CARREGAR INSTÂNCIAS =====
+        async function loadInstances() {
+            try {
+                addLog('📋 Carregando instâncias...', 'info');
+                const response = await fetch(`${API_BASE}/api/sessions`);
+                const data = await response.json();
+                const instancesList = document.getElementById('instances-list');
+                instancesList.innerHTML = '';
+                
+                if (data.sessions && data.sessions.length > 0) {
+                    data.sessions.forEach(session => {
+                        const instanceDiv = document.createElement('div');
+                        instanceDiv.className = 'instance-item';
+                        instanceDiv.innerHTML = `
+                            <div class="instance-header">
+                                <span class="instance-name">📱 ${session}</span>
+                                <span class="instance-status status-connected">✅ Ativa</span>
+                            </div>
+                            <div class="instance-actions">
+                                <button class="btn btn-primary" onclick="generateQR('${session}')">📱 QR Code</button>
+                                <button class="btn btn-danger" onclick="deleteInstance('${session}')">🗑️ Deletar</button>
+                            </div>
+                        `;
+                        instancesList.appendChild(instanceDiv);
+                    });
+                    addLog(`✅ ${data.sessions.length} instância(s)`, 'success');
+                } else {
+                    instancesList.innerHTML = '<div class="empty-state"><h3>📱 Nenhuma instância</h3></div>';
+                }
+            } catch (error) {
+                addLog(`❌ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        // ===== GERAR QR CODE =====
+        async function generateQR(instanceName) {
+            try {
+                addLog(`📱 Gerando QR: ${instanceName}`, 'info');
+                const response = await fetch(`${API_BASE}/api/generate-qr/${instanceName}`);
+                const data = await response.json();
+                if (response.ok && data.qrCode) {
+                    document.getElementById('qr-image').src = `data:image/png;base64,${data.qrCode}`;
+                    document.getElementById('qr-container').style.display = 'block';
+                    addLog(`✅ QR gerado: ${instanceName}`, 'success');
+                    showAlert('QR Code gerado!', 'success');
+                }
+            } catch (error) {
+                addLog(`❌ Erro QR: ${error.message}`, 'error');
+            }
+        }
+
+        // ===== DELETAR INSTÂNCIA =====
+        async function deleteInstance(instanceName) {
+            if (!confirm(`Deletar "${instanceName}"?`)) return;
+            try {
+                const response = await fetch(`${API_BASE}/api/delete-instance/${instanceName}`, { method: 'DELETE' });
+                if (response.ok) {
+                    addLog(`✅ Deletada: ${instanceName}`, 'success');
+                    showAlert('Instância deletada!', 'success');
+                    loadInstances();
+                    refreshStatus();
+                }
+            } catch (error) {
+                addLog(`❌ Erro: ${error.message}`, 'error');
+            }
+        }
+
+        // ===== ENVIAR TESTE =====
+        async function sendTestMessage() {
+            const session = document.getElementById('test-session').value;
+            const number = document.getElementById('test-number').value.trim();
+            const message = document.getElementById('test-message').value.trim();
+            
+            if (!session || !number || !message) {
+                showAlert('Preencha todos os campos!', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/send-message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session, number, message })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    addLog(`✅ Enviado! ID: ${data.messageId || 'N/A'}`, 'success');
+                    showAlert('Mensagem enviada!', 'success');
+                }
+            } catch (error) {
+                addLog(`❌ Erro: ${error.message}`, 'error');
+                showAlert('Erro no envio', 'error');
+            }
+        }
+
+        // ===== FUNÇÕES EXTRAS =====
+        function clearLogs() {
+            document.getElementById('logs').textContent = '';
+            addLog('🧹 Console limpo', 'info');
+        }
+
+        function validateNumber() {
+            const number = document.getElementById('test-number').value.trim();
+            if (number.length === 13) {
+                showAlert('Número válido!', 'success');
+            } else {
+                showAlert('Use 13 dígitos: 5541999999999', 'error');
+            }
+        }
+
+        function exportLogs() {
+            const logs = document.getElementById('logs').textContent;
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            const filename = `wppconnect-logs-${timestamp}.txt`;
+            
+            const blob = new Blob([logs], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            addLog(`📥 Logs exportados: ${filename}`, 'success');
+            showAlert('Logs exportados com sucesso!', 'success');
+        }
+
+        function toggleVerbose() {
+            verboseMode = !verboseMode;
+            document.getElementById('verbose-toggle').textContent = verboseMode ? 'Verbose On' : 'Verbose Off';
+            addLog(`🔍 Modo verbose ${verboseMode ? 'ativado' : 'desativado'}`, 'info');
+            showAlert(`Modo verbose ${verboseMode ? 'ativado' : 'desativado'}`, 'info');
+        }
+
+        function refreshQR() {
+            showAlert('Funcionalidade em desenvolvimento', 'info');
+        }
+
+        function startAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                showAlert('Auto-refresh desativado', 'info');
+                return;
+            }
+            
+            autoRefreshInterval = setInterval(() => {
+                refreshStatus();
+                addLog('🔄 Auto-refresh executado', 'info');
+            }, 30000);
+            
+            showAlert('Auto-refresh ativado (30s)', 'success');
+            addLog('⏱️ Auto-refresh iniciado (intervalo: 30s)', 'info');
+        }
+
+        function checkAllConnections() {
+            loadInstances();
+            refreshStatus();
+            addLog('🔍 Verificando todas as conexões...', 'info');
+        }
+
+        // ===== INICIALIZAÇÃO =====
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🚀 WppConnect Manager iniciado', 'success');
+            addLog(`🔗 API: ${API_BASE}`, 'info');
+            refreshStatus();
+            showAlert('🎉 Interface carregada!', 'success');
+            
+            // Validação de entrada em tempo real
+            document.getElementById('test-number').addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length > 13) value = value.slice(0, 13);
+                e.target.value = value;
+            });
+            
+            document.getElementById('instance-name').addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/[^a-zA-Z0-9-_]/g, '');
+            });
+        });
+
+        // ===== CLEANUP =====
+        window.addEventListener('beforeunload', function() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>
